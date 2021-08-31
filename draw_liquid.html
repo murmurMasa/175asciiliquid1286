@@ -1,1 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>液体らくがき</title>
+<script src="liquidfun.js"></script>>
+<script>
+let canvas, context, canvasRect;                //キャンバス
+const world = new b2World(new b2Vec2(0, 9.8));  //物理ワールド（重力：9.8）
+let particleSystem, particleVolor, ball;        //パーティクル、色、ボール
+let lines = new Array();                        //ＬＩＮＥ（body、始点、終点）
+let mouseDown = false, sx, sy;                  //マウス操作、カーソル座標
 
+const init = () => {
+    //キャンバスの取得
+    canvas = document.getElementById("world");  //キャンバスを取得
+    context = canvas.getContext("2d");
+    canvasRect = canvas.getBoundingClientRect();    //キャンバスの矩形情報を取得
+    //枠を作成
+
+
+
+
+}
+
+
+</script>
