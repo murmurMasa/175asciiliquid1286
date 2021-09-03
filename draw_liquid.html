@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>液体らくがき</title>
-<script src="liquidfun.js"></script>>
+<script src="liquidfun.js"></script>
 <script>
 let canvas, context, canvasRect;                //キャンバス
 const world = new b2World(new b2Vec2(0, 9.8));  //物理ワールド（重力：9.8）
@@ -17,11 +17,149 @@ const init = () => {
     context = canvas.getContext("2d");
     canvasRect = canvas.getBoundingClientRect();    //キャンバスの矩形情報を取得
     //枠を作成
-
-
-
-
+    const shape = new b2ChainShape();
+    shape.vertices.push(new b2Vec2(0, 0));                                  //外枠の形状を定義
+    shape.vertices.push(new b2Vec2(0, canvas.height/100));
+    shape.vertices.push(new b2Vec2(canvas.width/100, canvas.height/100));
+    shape.vertices.push(new b2Vec2(canvas.width/100, 0));
+    const waku = world.CreateBody(new b2BodyDef());                         //動かない剛体を作成
+    waku.CreateFixtureFromShape(shape, 0);
+    //ボールを作成
+    const circle = new b2CircleShape();                                     //ボールの形状は半径50ピクセルの円
+    circle.radius = 0.5;
+    const bodyDef = new b2BodyDef();                                        //動く剛体を作成
+    bodyDef.type = b2_dynamicBody;
+    ball = world.CreateBody(bodyDef);
+    ball.CreateFixtureFromShape(circle, 0.5);
+    ball.SetMassData(new b2MassData(0.1, new b2Vec2(0, 0), 0.1));           //質量、重心を設定
+    initBall();
+    //パーティクル(液体）を作成
+    setPS(b2_waterParticle, "#0000FF");
+    //描画
+    render();
 }
 
+const initBall = () => {
+    //ボールを落下位置へ移動
+    let pos = document.getElementById("pos").value;                         //ボール落下位置の値
+    if (pos < 0.5) pos = 0.5;
+    if (pos > canvas.width/100 - 0.5) pos = canvas.width/100 - 0.5;
+    ball.SetAwake(false);                                                   //ボールを止める
+    ball.SetLinearVelocity(new b2Vec2(0, 1));                               //ボールに下向きの初速度を与える
+    ball.SetTransform(new b2Vec2(pos, 0), 0);                               //ボールを落下位置へ移動
+}
 
+const setPS = (particleType, color) => {
+    //パーティクルを削除
+    if (particleSystem != null) {
+        world.DestroyParticleSystem(particleSystem);
+    }
+    //パーティクルを作成
+    const pos = document.getElementById("pos").value;
+    particleColor = color;
+    const particleSystemDef = new b2ParticleSystemDef();                    //半径2ピクセルのパーティクル（粒子）を定義
+    particleSystemDef.radius = 0.02;
+    const particleGroupDef = new b2ParticleGroupDef();                      //半径50ピクセルの円形のパーティクルグループを定義
+    const circle = new b2CircleShape();
+    circle.radius = 0.5;
+    particleGroupDef.shape = circle;
+    particleGroupDef.position = new b2Vec2(pos, 1);
+    particleGroupDef.flags = particleType;                                  //流体の種類をセット
+    particleSystem = world.CreateParticleSystem(particleSystemDef);         //流体を作成し、パーティクルグループをセット
+    particleSystem.CreateParticleGroup(particleGroupDef);
+}
+
+const render = () => {
+    //パーティクルの描画
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const buffer = particleSystem.GetPositionBuffer();                       //パーティクルの座標を取得
+    for (let i=0; i<buffer.length; i+=2) {
+        drawCircle(buffer[i], buffer[i+1], 2, particleColor);               //パーティクルを描く
+    }
+    //ボールの描画
+    const positon = ball.GetPosition();                                      //ボールの座標を取得
+    drawCircle(positon.x, positon.y, 50, "#FF0000");                        //赤色でボールを描く
+    //ラインの描画
+    for (const line of lines) {
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(line.sx, line.sy);
+        context.lineTo(line.ex, line.ey);
+        context.stroke();
+    }
+    //更新
+    world.Step(1/60, 8, 3);                                                 //60分の1秒ごとに物理ワールドを更新
+    window.requestAnimationFrame(render);                                   //アニメーションを行う
+}
+
+const drawCircle = (x, y, r, color) => {
+    //円の描画
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(x*100, y*100, r, 0, Math.PI*2);                             //半径rの塗りつぶし円を描く
+    context.fill();
+}
+
+const startDraw = event => {
+    //ラインの作成開始
+    sx = event.clientX - canvasRect.left;                                   //マウスカーソルの座標
+    sy = event.clientY - canvasRect.top;
+    mouseDown = true;
+}
+
+const draw = event => {
+    //ラインの作成
+    const x = event.clientX - canvasRect.left;
+    const y = event.clientY - canvasRect.top;
+    if (mouseDown) {
+        const shape = new b2ChainShape();
+        shape.vertices.push(new b2Vec2(sx/100, sy/100));                    //線が繋がった動かない剛体を作成
+        shape.vertices.push(new b2Vec2(x/100, y/100));
+        const line = world.CreateBody(new b2BodyDef());
+        line.CreateFixtureFromShape(shape, 0);
+        //ラインデータを配列に追加
+        lines.push({"body":line, "sx":sx, "sy":sy, "ex":x, "ey":y});
+        //始点を変更
+        [sx, sy] = [x, y];
+    }
+}
+
+const endDraw = event => {
+    //ラインの作成終了
+    mouseDown = false;
+}
+
+const deleteLines = () => {
+    //ラインの削除
+    for (const line of lines) {
+        world.DestroyBody(line.body);                                       //物理ワールドから削除
+    }
+    lines = [];
+}
 </script>
+<style>
+input[type="range"] {width: 600px;}
+canvas {border: thin solid #000000;}
+</style>
+</head>
+<body onload="init()">
+<p>流体らくがき</p>
+<input type="button" value="クリア" onclick="deleteLines()">
+<input type="button" value="ボール" onclick="initBall()">
+<input type="button" value="液体" onclick="setPS(b2_waterParticle, '#0000FF')">
+<input type="button" value="グミ" onclick="setPS(b2_elasticParticle, '#00CC00')">
+<input type="button" value="砂" onclick="setPS(b2_powderParticle, '#CCCC99')">
+<input type="button" value="油１" onclick="setPS(b2_viscousParticle, '#FFCC33')">
+<input type="button" value="油２" onclick="setPS(b2_tensileParticle, '#FF6633')">
+<hr>
+<input type="range" id="pos" value="3" min="0" max="6" step="0.1"><br>
+<canvas id="world" width="600" height="600"
+    onmousedown="startDraw(event)" onmousemove="draw(event)"
+    onmouseup="endDraw(event)" onmouseleave="endDraw(event)">
+</canvas>
+</body>
+</html>
+
+
+
+
